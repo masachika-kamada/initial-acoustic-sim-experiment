@@ -1,5 +1,7 @@
 import wave
+
 import numpy as np
+import pyroomacoustics as pra
 
 
 def normalize_and_pad_audio_files(wave_files):
@@ -21,6 +23,21 @@ def normalize_and_pad_audio_files(wave_files):
             audio_data[s] = np.pad(audio_data[s], (0, pad_width), "constant")
         audio_data[s] /= np.std(audio_data[s])
     return audio_data
+
+
+def create_outdoor_room(room_dim, fs):
+    m = pra.make_materials(floor="rough_concrete")
+
+    # Create a material for the air (other surfaces)
+    air_absorption = 1.0
+    air_material = pra.Material(air_absorption)
+
+    # Set the air material to all other surfaces
+    for direction in ["ceiling", "east", "west", "north", "south"]:
+        m[direction] = air_material
+
+    room = pra.ShoeBox(room_dim, fs=fs, materials=m, max_order=17)
+    return room
 
 
 # マイクロホンアレイまたは音源を円形に配置する関数
