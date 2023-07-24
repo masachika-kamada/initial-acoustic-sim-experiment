@@ -30,3 +30,17 @@ def circular_layout(center, radius, num_items):
     y = center[1] + radius * np.sin(angles)
     z = np.ones_like(x) * center[2]
     return np.vstack((x, y, z))
+
+
+def perform_simulation(room):
+    # 全ての音源とマイクロホンが部屋の中に入っていることを確認
+    for source in room.sources:
+        assert room.is_inside(source.position), "Some sources are outside the room."
+    for mic in room.mic_array.R.T:
+        assert room.is_inside(mic), "Some microphones are outside the room."
+
+    print("All sources and microphones are inside the room.")
+
+    room.simulate()
+    simulated_signals = room.mic_array.signals
+    return simulated_signals

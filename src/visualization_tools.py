@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+from IPython.display import display, Audio
 
 
 def plot_room(room):
@@ -43,3 +44,7 @@ def plot_room_views(room, zoom_center=None, zoom_size=None):
 
         ax.set_box_aspect(room_dim)
     plt.show()
+
+
+def play_audio(audio_data, fs):
+    display(Audio(audio_data, rate=fs))

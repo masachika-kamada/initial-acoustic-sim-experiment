@@ -20,7 +20,14 @@ def convert_to_wav(audio_file_path):
     return wav_file_path
 
 
+def ensure_dir(file_path):
+    directory = os.path.dirname(file_path)
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+
 def write_signal_to_wav(signal, file_path, sample_rate):
+    ensure_dir(file_path)
     signal = scale_signal(signal)
 
     # チャンネル数をチェック
@@ -38,6 +45,7 @@ def write_signal_to_wav(signal, file_path, sample_rate):
 
 
 def write_signal_to_npz(signal, file_path, sample_rate):
+    ensure_dir(file_path)
     np.savez(file_path, signal=signal, sample_rate=sample_rate)
 
 
