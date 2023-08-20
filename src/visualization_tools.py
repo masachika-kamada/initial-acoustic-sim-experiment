@@ -1,8 +1,12 @@
+from typing import List, Optional
+
 import matplotlib.pyplot as plt
-from IPython.display import display, Audio
+import numpy as np
+import pyroomacoustics as pra
+from IPython.display import Audio, display
 
 
-def plot_room(room):
+def plot_room(room: pra.ShoeBox) -> None:
     room_dim = room.get_bbox()[:, 1]
 
     fig = plt.figure()
@@ -17,7 +21,9 @@ def plot_room(room):
     plt.show()
 
 
-def plot_room_views(room, zoom_center=None, zoom_size=None):
+def plot_room_views(room: pra.ShoeBox,
+                    zoom_center: Optional[List[float]] = None,
+                    zoom_size: Optional[float] = None) -> None:
     # Get the room dimensions from the bounding box
     room_dim = room.get_bbox()[:, 1]
 
@@ -46,5 +52,5 @@ def plot_room_views(room, zoom_center=None, zoom_size=None):
     plt.show()
 
 
-def play_audio(audio_data, fs):
+def play_audio(audio_data: np.ndarray, fs: int) -> None:
     display(Audio(audio_data, rate=fs))

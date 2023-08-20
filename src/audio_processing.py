@@ -1,10 +1,12 @@
 import os
-from pydub import AudioSegment
-import numpy as np
 import wave
+from typing import List, Optional
+
+import numpy as np
+from pydub import AudioSegment
 
 
-def normalize_and_pad_audio_files(wave_files):
+def normalize_and_pad_audio_files(wave_files: List[str]) -> List[np.ndarray]:
     audio_data = []
     n_samples = 0
     n_sources = len(wave_files)
@@ -25,7 +27,7 @@ def normalize_and_pad_audio_files(wave_files):
     return audio_data
 
 
-def modify_audio_volume(input_wav, output_wav, volume_delta):
+def modify_audio_volume(input_wav: str, output_wav: Optional[str], volume_delta: float) -> None:
     sourceAudio = AudioSegment.from_wav(input_wav)
     processedAudio = sourceAudio + volume_delta
     if output_wav is None:
@@ -38,29 +40,25 @@ def modify_audio_volume(input_wav, output_wav, volume_delta):
     processedAudio.export(output_wav, format="wav")
 
 
-def scale_signal(signal):
+def scale_signal(signal: np.ndarray) -> np.ndarray:
     # スケーリングファクターを信号の最大絶対値に設定
     scaling_factor = np.max(np.abs(signal))
     # 音声データをスケーリングして int16 に変換
     return (signal * np.iinfo(np.int16).max / scaling_factor).astype(np.int16)
 
 
-def calculate_snr(desired, out):
+def calculate_snr(desired: np.ndarray, out: np.ndarray) -> float:
     # 短い方の長さを取得
     min_length = min(desired.shape[0], out.shape[0])
-
     # 信号と出力を同じ長さにクリップ
     desired = desired[:min_length]
     out = out[:min_length]
-
     # 残余ノイズを計算
     residual_noise = desired - out
-
     # SNRを計算
     signal_power = np.sum(desired ** 2)
     noise_power = np.sum(residual_noise ** 2)
 
-    # ゼロ除算を防ぐ
     if noise_power == 0:
         return float("inf")
 
