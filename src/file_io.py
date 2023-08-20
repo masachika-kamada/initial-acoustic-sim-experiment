@@ -20,7 +20,7 @@ def convert_to_wav(audio_file_path: str) -> str:
 
 def ensure_dir(file_path: str) -> None:
     directory = os.path.dirname(file_path)
-    if not os.path.exists(directory):
+    if directory and not os.path.exists(directory):
         os.makedirs(directory)
 
 
