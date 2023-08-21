@@ -1,18 +1,18 @@
 import os
 import wave
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import numpy as np
 from pydub import AudioSegment
 
 
-def normalize_and_pad_audio_files(wave_files: List[str]) -> List[np.ndarray]:
+def normalize_and_pad_audio_files(wav_file_paths: List[str]) -> List[np.ndarray]:
     audio_data = []
     n_samples = 0
-    n_sources = len(wave_files)
+    n_sources = len(wav_file_paths)
 
-    for wave_file in wave_files:
-        with wave.open(wave_file) as wav:
+    for wav_file_path in wav_file_paths:
+        with wave.open(wav_file_path) as wav:
             data = wav.readframes(wav.getnframes())
             data = np.frombuffer(data, dtype=np.int16)
             n_samples = max(wav.getnframes(), n_samples)
@@ -64,3 +64,28 @@ def calculate_snr(desired: np.ndarray, out: np.ndarray) -> float:
 
     snr = 10.0 * np.log10(signal_power / noise_power)
     return snr
+
+
+def detect_silent_intervals(fs: int, signal: np.ndarray) -> Tuple[Tuple[int, int], Tuple[float, float]]:
+    # Convert to single channel if multi-channel
+    if len(signal.shape) != 1:
+        signal = signal[:, 0]
+
+    # Detect the end of the initial silence
+    non_zero = np.where(signal != 0)
+    if len(non_zero[0]) == 0:
+        raise ValueError("The signal is all zeros")
+
+    start_index = non_zero[0][0]
+    end_index = non_zero[-1][-1] + 1
+    start_time = start_index / fs
+    end_time = end_index / fs
+
+    return (start_index, end_index), (start_time, end_time)
+
+
+def clip_signal(signal: np.ndarray, start_index: Optional[int] = None, end_index: Optional[int] = None,
+                auto: bool = False, fs: int = 16000, buffer: int = 0) -> np.ndarray:
+    if auto or start_index is None or end_index is None:
+        (start_index, end_index), _ = detect_silent_intervals(fs, signal)
+    return signal[start_index + buffer:end_index - buffer]
