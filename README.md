@@ -17,6 +17,8 @@ pip install -r requirements.txt
 │   ├── processed
 │   ├── raw
 │   └── simulation
+├── lib
+│   └── doa
 ├── notebook
 ├── src
 └── tests
@@ -27,6 +29,8 @@ pip install -r requirements.txt
   * `processed`: 前処理済みのデータを保存
   * `raw`: オリジナルの生データを保存
   * `simulation`: シミュレーション結果等を保存
-* `notebook`: Jupyter notebook等、データ解析やモデルの試行錯誤に使うノートブックを保存
+* `lib`: カスタマイズした外部ライブラリを保存
+  * `doa`: カスタマイズした DOA 関連のコード
+* `notebook`: Jupyter notebook 等、データ解析やモデルの試行錯誤に使うノートブックを保存
 * `src`: プロジェクトで使用するモジュールやパッケージを配置
 * `tests`: テストコードを配置
