@@ -66,11 +66,11 @@ def main():
         fs=fs,
         nfft=nfft,
         c=343.0,
-        num_src=len(sources_positions),
         mode="near",
-        azimuth=np.linspace(-np.pi, np.pi, 360)
+        azimuth=np.linspace(-np.pi, np.pi, 360),
+        signal_noise_thresh=100,
     )
-    doa.locate_sources(X, freq_range=[300, 3500])
+    doa.locate_sources(X, freq_range=[300, 3500], auto_identify=True)
     plot_music_spectrum(doa)
 
 

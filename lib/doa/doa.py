@@ -299,7 +299,8 @@ class DOA(object):
             self.mode_vec = ModeVector(self.L, self.fs, self.nfft, self.c, self.grid)
 
     def locate_sources(
-        self, X, num_src=None, freq_range=[500.0, 4000.0], freq_bins=None, freq_hz=None
+        self, X, num_src=None, freq_range=[500.0, 4000.0], freq_bins=None, freq_hz=None,
+        display=False, auto_identify=False
     ):
         """
         Locate source(s) using corresponding algorithm.
@@ -360,7 +361,7 @@ class DOA(object):
         self.grid.set_values(0.0)
 
         # Run the algorithm
-        self._process(X)
+        self._process(X, display=display, auto_identify=auto_identify)
 
         # locate sources
         from .frida import FRIDA

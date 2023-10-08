@@ -53,6 +53,7 @@ class MUSIC(DOA):
         azimuth=None,
         colatitude=None,
         frequency_normalization=False,
+        signal_noise_thresh=None,
         **kwargs
     ):
 
@@ -72,8 +73,9 @@ class MUSIC(DOA):
 
         self.Pssl = None
         self.frequency_normalization = frequency_normalization
+        self.signal_noise_thresh = signal_noise_thresh
 
-    def _process(self, X):
+    def _process(self, X, display, auto_identify):
         """
         Perform MUSIC for given frame in order to estimate steered response
         spectrum.
@@ -82,11 +84,13 @@ class MUSIC(DOA):
         self.Pssl = np.zeros((self.num_freq, self.grid.n_points))
         C_hat = self._compute_correlation_matricesvec(X)
         # subspace decomposition
-        Es, En, ws, wn = self._subspace_decomposition(C_hat[None, ...])
+        eigvecs_s = self._extract_signal_subspace(C_hat[None, ...],
+                                                  display=display,
+                                                  auto_identify=auto_identify)
         # compute spatial spectrum
         identity = np.zeros((self.num_freq, self.M, self.M))
         identity[:, list(np.arange(self.M)), list(np.arange(self.M))] = 1
-        cross = identity - np.matmul(Es, np.transpose(np.conjugate(Es), (0, 1, 3, 2)))
+        cross = identity - np.matmul(eigvecs_s, np.transpose(np.conjugate(eigvecs_s), (0, 1, 3, 2)))
         self.Pssl = self._compute_spatial_spectrumvec(cross)
         if self.frequency_normalization:
             self._apply_frequency_normalization()
@@ -181,19 +185,64 @@ class MUSIC(DOA):
         return C_hat
 
     # vectorized versino
-    def _subspace_decomposition(self, R):
-        # eigenvalue decomposition!
-        # This method is specialized for Hermitian symmetric matrices,
-        # which is the case since R is a covariance matrix
-        w, v = np.linalg.eigh(R)
+    def _extract_signal_subspace(self, R, display, auto_identify):
+        # Step 1: Eigenvalue decomposition
+        # Eigenvalues and eigenvectors are returned in ascending order; no need to sort.
+        eigvals, eigvecs = np.linalg.eigh(R)
 
-        # This method (numpy.linalg.eigh) returns the eigenvalues (and
-        # eigenvectors) in ascending order, so there is no need to sort Signal
-        # comprises the leading eigenvalues Noise takes the rest
+        # Step 2: Display if flag is True
+        if display is True:
+            self._display_eigvals(eigvals)
 
-        Es = v[..., -self.num_src :]
-        ws = w[..., -self.num_src :]
-        En = v[..., : -self.num_src]
-        wn = w[..., : -self.num_src]
+        # Step 3: Auto-identify signal and noise if flag is True
+        if auto_identify:
+            self.num_src = self._auto_identify(eigvals)
 
-        return (Es, En, ws, wn)
+        # Step 4: Extract signal subspace
+        # eigvecs_n = eigvecs[..., :-self.num_src]
+        eigvecs_s = eigvecs[..., -self.num_src:]
+        # eigvals_n = eigvals[..., :-self.num_src]
+        # eigvals_s = eigvals[..., -self.num_src:]
+
+        return eigvecs_s
+
+
+    def _display_eigvals(self, eigvals):
+        import matplotlib.pyplot as plt
+
+        # Visualize the order of eigenvalue magnitudes
+        sorted_indices = np.argsort(eigvals[0])
+        cmap = plt.get_cmap("viridis")
+        fig1, ax1 = plt.subplots(figsize=(8, 8))
+        cax1 = ax1.matshow(sorted_indices, cmap=cmap, aspect="auto")
+        fig1.colorbar(cax1, label="Rank of Eigenvalue (not normalized)")
+        ax1.set_title("Eigenvalue Ranks for Each Row")
+        ax1.set_xlabel("Eigenvalue Index")
+        ax1.set_ylabel("Row Index")
+
+        # Visualize the magnitude of eigenvalues
+        fig2, axes2 = plt.subplots(1, 8, figsize=(15, 8), sharey=True)
+        for i in range(8):
+            axes2[i].plot(eigvals[..., i], label=f"Eigenvalue {i+1}", marker="o", linestyle="")
+            axes2[i].set_title(f"Eigenvalue {i+1}")
+            axes2[i].set_xlabel("Row Index")
+            axes2[i].set_ylim([np.min(eigvals), np.max(eigvals)])
+
+        axes2[0].set_ylabel("Eigenvalue Magnitude")
+        plt.suptitle("Distribution of Eigenvalue Magnitudes Across Rows")
+
+        plt.show()
+
+
+    def _auto_identify(self, eigvals):
+        """
+        Automatically identify the number of sources based on the eigenvalues
+        of the correlation matrix.
+        """
+        eigvals_max = np.max(eigvals[0], axis=0)
+        # Compute the eigenvalue ratio between consecutive elements
+        eigvals_ratio = eigvals_max[1:] / eigvals_max[:-1]
+        # Find the index where the ratio exceeds the threshold or return the last index
+        index = np.argmax(eigvals_ratio > self.signal_noise_thresh)
+        num_sources = len(eigvals_ratio) - index if index else len(eigvals_ratio)
+        return num_sources
