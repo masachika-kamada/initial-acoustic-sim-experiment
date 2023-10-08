@@ -39,6 +39,8 @@ class MUSIC(DOA):
         Default is x-y plane search: np.pi/2*np.ones(1)
     frequency_normalization: bool
         If True, the MUSIC pseudo-spectra are normalized before averaging across the frequency axis, default:False
+    signal_noise_thresh: float
+        Threshold for automatically identifying the number of sources. Default: 100
     """
 
     def __init__(
@@ -53,7 +55,7 @@ class MUSIC(DOA):
         azimuth=None,
         colatitude=None,
         frequency_normalization=False,
-        signal_noise_thresh=None,
+        signal_noise_thresh=100,
         **kwargs
     ):
 
