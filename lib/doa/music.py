@@ -84,15 +84,14 @@ class MUSIC(DOA):
         """
         # compute steered response
         self.Pssl = np.zeros((self.num_freq, self.grid.n_points))
-        C_hat = self._compute_correlation_matricesvec(X)
+        R = self._compute_correlation_matricesvec(X)
         # subspace decomposition
-        eigvecs_s = self._extract_signal_subspace(C_hat[None, ...],
-                                                  display=display,
+        eigvecs_s = self._extract_signal_subspace(R, display=display,
                                                   auto_identify=auto_identify)
         # compute spatial spectrum
         identity = np.zeros((self.num_freq, self.M, self.M))
         identity[:, list(np.arange(self.M)), list(np.arange(self.M))] = 1
-        cross = identity - np.matmul(eigvecs_s, np.transpose(np.conjugate(eigvecs_s), (0, 1, 3, 2)))
+        cross = identity - np.matmul(eigvecs_s, np.transpose(np.conjugate(eigvecs_s), (0, 2, 1)))
         self.Pssl = self._compute_spatial_spectrumvec(cross)
         if self.frequency_normalization:
             self._apply_frequency_normalization()
@@ -186,7 +185,7 @@ class MUSIC(DOA):
         C_hat = np.mean(C_hat, axis=0)
         return C_hat
 
-    # vectorized versino
+    # vectorized version
     def _extract_signal_subspace(self, R, display, auto_identify):
         # Step 1: Eigenvalue decomposition
         # Eigenvalues and eigenvectors are returned in ascending order; no need to sort.
@@ -213,7 +212,7 @@ class MUSIC(DOA):
         import matplotlib.pyplot as plt
 
         # Visualize the order of eigenvalue magnitudes
-        sorted_indices = np.argsort(eigvals[0])
+        sorted_indices = np.argsort(eigvals)
         cmap = plt.get_cmap("viridis")
         fig1, ax1 = plt.subplots(figsize=(8, 8))
         cax1 = ax1.matshow(sorted_indices, cmap=cmap, aspect="auto")
@@ -241,9 +240,10 @@ class MUSIC(DOA):
         Automatically identify the number of sources based on the eigenvalues
         of the correlation matrix.
         """
-        eigvals_max = np.max(eigvals[0], axis=0)
+        eigvals_max = np.max(eigvals, axis=0)
         # Compute the eigenvalue ratio between consecutive elements
         eigvals_ratio = eigvals_max[1:] / eigvals_max[:-1]
+        print(f"Eigenvalue ratio: {eigvals_ratio}")
         # Find the index where the ratio exceeds the threshold or return the last index
         index = np.argmax(eigvals_ratio > self.signal_noise_thresh)
         num_sources = len(eigvals_ratio) - index if index else len(eigvals_ratio)
