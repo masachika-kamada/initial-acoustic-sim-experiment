@@ -73,107 +73,28 @@ class MUSIC(DOA):
             **kwargs
         )
 
-        self.Pssl = None
+        self.spatial_spectrum = None
         self.frequency_normalization = frequency_normalization
         self.signal_noise_thresh = signal_noise_thresh
 
-    def _process(self, X, display, auto_identify):
+    def _process(self, X, display, auto_identify, use_noise):
         """
         Perform MUSIC for given frame in order to estimate steered response
         spectrum.
         """
         # compute steered response
-        self.Pssl = np.zeros((self.num_freq, self.grid.n_points))
+        self.spatial_spectrum = np.zeros((self.num_freq, self.grid.n_points))
         R = self._compute_correlation_matricesvec(X)
         # subspace decomposition
-        eigvecs_s = self._extract_signal_subspace(R, display=display,
-                                                  auto_identify=auto_identify)
+        eigvecs_s, eigvecs_n = self._extract_subspaces(R, display=display, auto_identify=auto_identify)
+
         # compute spatial spectrum
-        identity = np.zeros((self.num_freq, self.M, self.M))
-        identity[:, list(np.arange(self.M)), list(np.arange(self.M))] = 1
-        cross = identity - np.matmul(eigvecs_s, np.transpose(np.conjugate(eigvecs_s), (0, 2, 1)))
-        self.Pssl = self._compute_spatial_spectrumvec(cross)
+        self.spatial_spectrum = self._compute_spatial_spectrum(eigvecs_s, eigvecs_n, use_noise)
+
         if self.frequency_normalization:
             self._apply_frequency_normalization()
-        self.grid.set_values(np.squeeze(np.sum(self.Pssl, axis=1) / self.num_freq))
+        self.grid.set_values(np.squeeze(np.sum(self.spatial_spectrum, axis=1) / self.num_freq))
 
-    def _apply_frequency_normalization(self):
-        """
-        Normalize the MUSIC pseudo-spectrum per frequency bin
-        """
-        self.Pssl = self.Pssl / np.max(self.Pssl, axis=0, keepdims=True)
-
-    def plot_individual_spectrum(self):
-        """
-        Plot the steered response for each frequency.
-        """
-
-        # check if matplotlib imported
-        try:
-            import matplotlib.pyplot as plt
-        except ImportError:
-            import warnings
-
-            warnings.warn("Matplotlib is required for plotting")
-            return
-
-        # only for 2D
-        if self.grid.dim == 3:
-            pass
-        else:
-            import warnings
-
-            warnings.warn("Only for 2D.")
-            return
-
-        # plot
-        for k in range(self.num_freq):
-
-            freq = float(self.freq_bins[k]) / self.nfft * self.fs
-            azimuth = self.grid.azimuth * 180 / np.pi
-
-            plt.plot(azimuth, self.Pssl[k, 0 : len(azimuth)])
-
-            plt.ylabel("Magnitude")
-            plt.xlabel("Azimuth [degrees]")
-            plt.xlim(min(azimuth), max(azimuth))
-            plt.title("Steering Response Spectrum - " + str(freq) + " Hz")
-            plt.grid(True)
-
-    def _compute_spatial_spectrumvec(self, cross):
-        mod_vec = np.transpose(
-            np.array(self.mode_vec[self.freq_bins, :, :]), axes=[2, 0, 1]
-        )
-        # timeframe, frequ, no idea
-        denom = np.matmul(
-            np.conjugate(mod_vec[..., None, :]), np.matmul(cross, mod_vec[..., None])
-        )
-        return 1.0 / abs(denom[..., 0, 0])
-
-    def _compute_spatial_spectrum(self, cross, k):
-
-        P = np.zeros(self.grid.n_points)
-
-        for n in range(self.grid.n_points):
-            Dc = np.array(self.mode_vec[k, :, n], ndmin=2).T
-            Dc_H = np.conjugate(np.array(self.mode_vec[k, :, n], ndmin=2))
-            denom = np.linalg.multi_dot([Dc_H, cross, Dc])
-            P[n] = 1 / abs(denom)
-
-        return P
-
-    # non-vectorized version
-    def _compute_correlation_matrices(self, X):
-        C_hat = np.zeros([self.num_freq, self.M, self.M], dtype=complex)
-        for i in range(self.num_freq):
-            k = self.freq_bins[i]
-            for s in range(self.num_snap):
-                C_hat[i, :, :] = C_hat[i, :, :] + np.outer(
-                    X[:, k, s], np.conjugate(X[:, k, s])
-                )
-        return C_hat / self.num_snap
-
-    # vectorized version
     def _compute_correlation_matricesvec(self, X):
         # change X such that time frames, frequency microphones is the result
         X = np.transpose(X, axes=[2, 1, 0])
@@ -185,8 +106,7 @@ class MUSIC(DOA):
         C_hat = np.mean(C_hat, axis=0)
         return C_hat
 
-    # vectorized version
-    def _extract_signal_subspace(self, R, display, auto_identify):
+    def _extract_subspaces(self, R, display, auto_identify):
         # Step 1: Eigenvalue decomposition
         # Eigenvalues and eigenvectors are returned in ascending order; no need to sort.
         eigvals, eigvecs = np.linalg.eigh(R)
@@ -199,14 +119,11 @@ class MUSIC(DOA):
         if auto_identify:
             self.num_src = self._auto_identify(eigvals)
 
-        # Step 4: Extract signal subspace
-        # eigvecs_n = eigvecs[..., :-self.num_src]
+        # Step 4: Extract subspace
+        eigvecs_n = eigvecs[..., :-self.num_src]
         eigvecs_s = eigvecs[..., -self.num_src:]
-        # eigvals_n = eigvals[..., :-self.num_src]
-        # eigvals_s = eigvals[..., -self.num_src:]
 
-        return eigvecs_s
-
+        return eigvecs_s, eigvecs_n
 
     def _display_eigvals(self, eigvals):
         import matplotlib.pyplot as plt
@@ -234,7 +151,6 @@ class MUSIC(DOA):
 
         plt.show()
 
-
     def _auto_identify(self, eigvals):
         """
         Automatically identify the number of sources based on the eigenvalues
@@ -248,3 +164,52 @@ class MUSIC(DOA):
         index = np.argmax(eigvals_ratio > self.signal_noise_thresh)
         num_sources = len(eigvals_ratio) - index if index else len(eigvals_ratio)
         return num_sources
+
+    def _compute_spatial_spectrum(self, eigvecs_s, eigvecs_n, use_noise):
+        if use_noise:
+            spatial_spectrum = np.zeros((self.num_freq, self.grid.n_points))
+            self.steering_vector = self._compute_steering_vector()
+            for f in range(self.num_freq):
+                steering_vector_f = self.steering_vector[f, :, :]
+                noise_eigvecs_f = eigvecs_n[f, :, :]
+                # Calculate the MUSIC spectrum for each angle and frequency bin
+                vector_norm_squared = np.abs(np.sum(np.conj(steering_vector_f) * steering_vector_f, axis=1))
+                noise_projection = np.abs(np.sum(
+                    np.conj(steering_vector_f) @ noise_eigvecs_f * (noise_eigvecs_f.conj().T @ steering_vector_f.T).T,
+                    axis=1))
+                spatial_spectrum[f, :] = vector_norm_squared / noise_projection
+            return spatial_spectrum.T
+        else:
+            identity = np.zeros((self.num_freq, self.M, self.M))
+            identity[:, list(np.arange(self.M)), list(np.arange(self.M))] = 1
+            cross = identity - np.matmul(eigvecs_s, np.transpose(np.conjugate(eigvecs_s), (0, 2, 1)))
+            return self._compute_spatial_spectrumvec(cross)
+
+    def _compute_steering_vector(self, angle_step=1):
+        n_channels = self.L.shape[1]
+        theta = np.deg2rad(np.arange(-180, 180, angle_step))
+
+        direction_vectors = np.zeros((2, len(theta)), dtype=float)
+        direction_vectors[0, :] = np.cos(theta)
+        direction_vectors[1, :] = np.sin(theta)
+
+        steering_phase = np.einsum("k,ism,ism->ksm", 2.0j * np.pi / self.c * self.freq_hz,
+                                   direction_vectors[..., None], self.L[:, None, :])
+        steering_vector = 1.0 / np.sqrt(n_channels) * np.exp(steering_phase)
+        return steering_vector
+
+    def _compute_spatial_spectrumvec(self, cross):
+        mod_vec = np.transpose(
+            np.array(self.mode_vec[self.freq_bins, :, :]), axes=[2, 0, 1]
+        )
+        # timeframe, frequ, no idea
+        denom = np.matmul(
+            np.conjugate(mod_vec[..., None, :]), np.matmul(cross, mod_vec[..., None])
+        )
+        return 1.0 / abs(denom[..., 0, 0])
+
+    def _apply_frequency_normalization(self):
+        """
+        Normalize the MUSIC pseudo-spectrum per frequency bin
+        """
+        self.spatial_spectrum = self.spatial_spectrum / np.max(self.spatial_spectrum, axis=0, keepdims=True)

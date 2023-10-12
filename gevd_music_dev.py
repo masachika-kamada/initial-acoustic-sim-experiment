@@ -96,29 +96,31 @@ def main():
     sources_positions = np.array([[0.5, 0.5], [2, 3.2], [3.5, 2]])
     mic_positions = pra.circular_2D_array(center=[2.,2.], M=8, phi0=0, radius=0.1)
     signal = generate_room_acoustics(wav_file_path, fs, sources_positions, mic_positions)
-    signal2 = generate_room_acoustics2(fs, mic_positions)
-    signal3 = generate_room_acoustics3(wav_file_path, fs, sources_positions, mic_positions)
-    write_signal_to_wav(signal, "data/simulation/gevd/room2.wav", fs)
+    # signal2 = generate_room_acoustics2(fs, mic_positions)
+    # signal3 = generate_room_acoustics3(wav_file_path, fs, sources_positions, mic_positions)
+    # write_signal_to_wav(signal, "data/simulation/gevd/room2.wav", fs)
 
     nfft = 512
     hop_size = nfft // 2
     X = perform_fft_on_frames(signal, nfft, hop_size)
-    X_noise = perform_fft_on_frames(signal3, nfft, hop_size)
+    X_noise = perform_fft_on_frames(signal, nfft, hop_size)
 
-    doa = GevdMUSIC(
-    # doa = MUSIC(
+    # doa = GevdMUSIC(
+    doa = MUSIC(
         L=mic_positions,
         fs=fs,
         nfft=nfft,
         c=343.0,
         mode="near",
         azimuth=np.linspace(-np.pi, np.pi, 360),
-        signal_noise_thresh=4,
+        signal_noise_thresh=20,
         X_noise=X_noise,
         num_src=1
     )
-    # doa.locate_sources(X, freq_range=[300, 3500], display=True, auto_identify=True)
-    doa.locate_sources(X, freq_range=[300, 3500], display=True)
+    doa.locate_sources(X, freq_range=[300, 3500],
+                    #    display=True,
+                       auto_identify=True,
+                       use_noise=True)
     plot_music_spectrum(doa)
 
 
