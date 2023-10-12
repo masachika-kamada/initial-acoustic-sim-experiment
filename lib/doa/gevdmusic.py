@@ -75,44 +75,35 @@ class GevdMUSIC(MUSIC):
             **kwargs
         )
 
-        self.Pssl = None
+        self.spatial_spectrum = None
         self.frequency_normalization = frequency_normalization
         self.X_noise = X_noise
 
-    def _process(self, X, display, auto_identify):
+    def _process(self, X, display, auto_identify, use_noise):
         # compute steered response
-        self.Pssl = np.zeros((self.num_freq, self.grid.n_points))
+        self.spatial_spectrum = np.zeros((self.num_freq, self.grid.n_points))
         # Compute signal and noise correlation matrices
         R = self._compute_correlation_matricesvec(X)
         K = self._compute_correlation_matricesvec(self.X_noise)
         # subspace decomposition
-        eigvecs_s = self._extract_signal_subspace(R, K,
-                                                  display=display,
-                                                  auto_identify=auto_identify)
+        eigvecs_s, eigvecs_n = self._extract_subspaces(R, K,
+                                                       display=display,
+                                                       auto_identify=auto_identify)
         # compute spatial spectrum
-        identity = np.zeros((self.num_freq, self.M, self.M))
-        identity[:, list(np.arange(self.M)), list(np.arange(self.M))] = 1
-        cross = identity - np.matmul(eigvecs_s, np.transpose(np.conjugate(eigvecs_s), (0, 2, 1)))
-        self.Pssl = self._compute_spatial_spectrumvec(cross)
+        self.spatial_spectrum = self._compute_spatial_spectrum(eigvecs_s, eigvecs_n, use_noise)
+
         if self.frequency_normalization:
             self._apply_frequency_normalization()
-        self.grid.set_values(np.squeeze(np.sum(self.Pssl, axis=1) / self.num_freq))
+        self.grid.set_values(np.squeeze(np.sum(self.spatial_spectrum, axis=1) / self.num_freq))
 
-    def _extract_signal_subspace(self, R, K, display, auto_identify):
+    def _extract_subspaces(self, R, K, display, auto_identify):
+        # Initialize
+        eigvals_array = np.empty(R.shape[:2], dtype=complex)
+        eigvecs_array = np.empty(R.shape, dtype=complex)
+
         # Step 1: Eigenvalue decomposition
-        # eigvals, eigvecs = scipy.linalg.eigh(R, K)
-
-        eigvals_list = []
-        eigvecs_list = []
-
-        for i in range(R.shape[0]):  # Assuming R.shape[1] is the number of frequency bins
-            eigvals, eigvecs = scipy.linalg.eigh(R[i], K[i])
-            eigvals_list.append(eigvals)
-            eigvecs_list.append(eigvecs)
-
-        # Convert lists to arrays if needed
-        eigvals_array = np.array(eigvals_list)
-        eigvecs_array = np.array(eigvecs_list)
+        for i in range(self.num_freq):
+            eigvals_array[i], eigvecs_array[i] = scipy.linalg.eigh(R[i], K[i])
 
         # Step 2: Display if flag is True
         if display is True:
@@ -122,10 +113,8 @@ class GevdMUSIC(MUSIC):
         if auto_identify:
             self.num_src = self._auto_identify(eigvals_array)
 
-        # Step 4: Extract signal subspace
-        # eigvecs_n = eigvecs[..., :-self.num_src]
+        # Step 4: Extract subspace
+        eigvecs_n = eigvecs_array[..., :-self.num_src]
         eigvecs_s = eigvecs_array[..., -self.num_src:]
-        # eigvals_n = eigvals[..., :-self.num_src]
-        # eigvals_s = eigvals[..., -self.num_src:]
 
-        return eigvecs_s
+        return eigvecs_s, eigvecs_n

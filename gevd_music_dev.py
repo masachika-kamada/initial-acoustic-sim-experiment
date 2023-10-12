@@ -97,16 +97,16 @@ def main():
     mic_positions = pra.circular_2D_array(center=[2.,2.], M=8, phi0=0, radius=0.1)
     signal = generate_room_acoustics(wav_file_path, fs, sources_positions, mic_positions)
     # signal2 = generate_room_acoustics2(fs, mic_positions)
-    # signal3 = generate_room_acoustics3(wav_file_path, fs, sources_positions, mic_positions)
+    signal3 = generate_room_acoustics3(wav_file_path, fs, sources_positions, mic_positions)
     # write_signal_to_wav(signal, "data/simulation/gevd/room2.wav", fs)
 
     nfft = 512
     hop_size = nfft // 2
     X = perform_fft_on_frames(signal, nfft, hop_size)
-    X_noise = perform_fft_on_frames(signal, nfft, hop_size)
+    X_noise = perform_fft_on_frames(signal3, nfft, hop_size)
 
-    # doa = GevdMUSIC(
-    doa = MUSIC(
+    doa = GevdMUSIC(
+    # doa = MUSIC(
         L=mic_positions,
         fs=fs,
         nfft=nfft,
