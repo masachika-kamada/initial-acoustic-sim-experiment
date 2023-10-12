@@ -4,12 +4,12 @@ import scipy
 
 
 class MusicDoaEstimator:
-    def __init__(self, N, M, p, fc, mic_spacing, speed_of_sound, seed=0):
+    def __init__(self, N, M, p, fc, mic_spacing, c, seed=0):
         self.N = N
         self.M = M
         self.p = p
         self.fc = fc
-        self.speed_of_sound = speed_of_sound
+        self.c = c
         self.mic_spacing = mic_spacing
         self.seed = seed
         np.random.seed(self.seed)
@@ -26,14 +26,23 @@ class MusicDoaEstimator:
         return s
 
     def compute_steering_vector(self, theta):
-        steering_vector = np.exp(-1j * 2 * np.pi * self.fc * self.mic_spacing * (np.cos(theta) / self.speed_of_sound) * np.arange(self.M))
+        steering_vector = np.exp(-1j * 2 * np.pi * self.fc * self.mic_spacing * (np.cos(theta) / self.c) * np.arange(self.M))
         return steering_vector.reshape((self.M, 1))
 
-    def compute_music_spectrum(self, theta, noise_eigvecs):
-        steering_vector = self.compute_steering_vector(theta)
-        vector_norm_squared = np.abs(steering_vector.conj().T @ steering_vector)[0, 0]
-        noise_projection = steering_vector.conj().T @ noise_eigvecs @ noise_eigvecs.conj().T @ steering_vector
-        return vector_norm_squared / noise_projection[0, 0]
+    def compute_music_spectrum_batch(self, theta_vals, noise_eigvecs):
+        # Compute all steering vectors at once
+        theta_vals_rad = theta_vals * np.pi / 180.0
+        steering_vectors = np.exp(-1j * 2 * np.pi * self.fc * self.mic_spacing * (np.cos(theta_vals_rad) / self.c)[:, None] * np.arange(self.M))
+
+        # Calculate MUSIC spectrum
+        vector_norm_squared = np.abs(np.sum(np.conj(steering_vectors) * steering_vectors, axis=1))
+        noise_projection = np.abs(np.sum(np.conj(steering_vectors) @ noise_eigvecs * (noise_eigvecs.conj().T @ steering_vectors.T).T, axis=1))
+        print(f"{np.conj(steering_vectors).shape=}")
+        print(f"{noise_eigvecs.shape=}")
+        print(f"{noise_eigvecs.conj().T.shape=}")
+        print(f"{steering_vectors.T.shape=}")
+
+        return vector_norm_squared / noise_projection
 
     def estimate_doa(self, X, show_plots=True):
         Rxx = X @ X.conj().T / self.p
@@ -48,7 +57,8 @@ class MusicDoaEstimator:
         noise_eigvecs = eigvecs[:, self.N:]
 
         theta_vals = np.arange(0, 181, 1)
-        music_spectrum_vals = np.array([self.compute_music_spectrum(val * np.pi / 180.0, noise_eigvecs) for val in theta_vals]).real
+        # music_spectrum_vals = np.array([self.compute_music_spectrum(val * np.pi / 180.0, noise_eigvecs) for val in theta_vals]).real
+        music_spectrum_vals = self.compute_music_spectrum_batch(theta_vals, noise_eigvecs).real
 
         # parameters for peak finding
         height = np.max(music_spectrum_vals) * 0.1  # peaks are at least 10% of max
@@ -78,7 +88,7 @@ class MusicDoaEstimator:
 
 
 def main():
-    estimator = MusicDoaEstimator(N=3, M=10, p=100, fc=10000, mic_spacing=0.01, speed_of_sound=343)
+    estimator = MusicDoaEstimator(N=3, M=10, p=100, fc=10000, mic_spacing=0.01, c=343)
 
     s = estimator.generate_signal()
 
