@@ -156,6 +156,10 @@ class MUSIC(DOA):
         Automatically identify the number of sources based on the eigenvalues
         of the correlation matrix.
         """
+        # If eigenvalues are complex, take the real part
+        if np.iscomplexobj(eigvals):
+            eigvals = np.real(eigvals)
+
         eigvals_max = np.max(eigvals, axis=0)
         # Compute the eigenvalue ratio between consecutive elements
         eigvals_ratio = eigvals_max[1:] / eigvals_max[:-1]
