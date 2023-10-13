@@ -9,6 +9,9 @@ general:
     radius: 0.1
   start_time: 0.1
   end_time: 4
+  nfft: 512
+  hop_size: 256
+  freq_range: [300, 3500]
 
 source:
   - file_path: "data/raw/sample/arctic_a0001.wav"
@@ -25,3 +28,7 @@ noise:
   - file_path: "data/processed/propeller/p2000_2/dst.wav"
     position: [3.5, 2]
     start_time: 3
+
+doa:
+  method: "GEVD-MUSIC"  # or "MUSIC"
+  source_noise_thresh: 20

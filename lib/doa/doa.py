@@ -300,7 +300,7 @@ class DOA(object):
 
     def locate_sources(
         self, X, num_src=None, freq_range=[500.0, 4000.0], freq_bins=None, freq_hz=None,
-        display=False, save=True, auto_identify=False, use_noise=False
+        display=False, save=True, auto_identify=False, use_noise=True
     ):
         """
         Locate source(s) using corresponding algorithm.

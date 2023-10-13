@@ -1,5 +1,4 @@
 *
 !.gitignore
 !001/
-!001/doa_config.yaml
-!001/room_config.yaml
+!001/config.yaml
