@@ -3,6 +3,7 @@ import wave
 from typing import Tuple
 
 import numpy as np
+import yaml
 from pydub import AudioSegment
 from scipy.io import wavfile
 from scipy.signal import resample_poly
@@ -56,3 +57,8 @@ def load_signal_from_wav(wav_file_path: str, expected_fs: int) -> np.ndarray:
         signal = signal.astype(float)
         signal = resample_poly(signal, expected_fs, fs)
     return signal
+
+
+def load_config(config_path):
+    with open(config_path, "r") as f:
+        return yaml.safe_load(f)
