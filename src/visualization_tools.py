@@ -56,7 +56,9 @@ def play_audio(audio_data: np.ndarray, fs: int) -> None:
     display(Audio(audio_data, rate=fs))
 
 
-def plot_music_spectrum(doa):
+def plot_music_spectrum(doa,
+                        output_dir: Optional[str] = None,
+                        display: bool = False) -> None:
     estimated_angles = doa.grid.azimuth
     music_spectrum = doa.grid.values
     plt.figure(figsize=(12, 5))
@@ -74,4 +76,8 @@ def plot_music_spectrum(doa):
     plt.grid(True)
 
     plt.tight_layout()
-    plt.show()
+    if output_dir is not None:
+        plt.savefig(f"{output_dir}/music_spectrum.png")
+    if display:
+        plt.show()
+    plt.close()

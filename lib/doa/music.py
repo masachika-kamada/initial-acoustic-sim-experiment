@@ -56,6 +56,7 @@ class MUSIC(DOA):
         colatitude=None,
         frequency_normalization=False,
         source_noise_thresh=100,
+        output_dir=".",
         **kwargs
     ):
 
@@ -76,8 +77,9 @@ class MUSIC(DOA):
         self.spatial_spectrum = None
         self.frequency_normalization = frequency_normalization
         self.source_noise_thresh = source_noise_thresh
+        self.output_dir = output_dir
 
-    def _process(self, X, display, auto_identify, use_noise):
+    def _process(self, X, display, save, auto_identify, use_noise):
         """
         Perform MUSIC for given frame in order to estimate steered response
         spectrum.
@@ -86,7 +88,8 @@ class MUSIC(DOA):
         self.spatial_spectrum = np.zeros((self.num_freq, self.grid.n_points))
         R = self._compute_correlation_matricesvec(X)
         # subspace decomposition
-        eigvecs_s, eigvecs_n = self._extract_subspaces(R, display=display, auto_identify=auto_identify)
+        eigvecs_s, eigvecs_n = self._extract_subspaces(R, display=display, save=save,
+                                                       auto_identify=auto_identify)
 
         # compute spatial spectrum
         self.spatial_spectrum = self._compute_spatial_spectrum(eigvecs_s, eigvecs_n, use_noise)
@@ -106,18 +109,18 @@ class MUSIC(DOA):
         C_hat = np.mean(C_hat, axis=0)
         return C_hat
 
-    def _extract_subspaces(self, R, display, auto_identify):
+    def _extract_subspaces(self, R, display, save, auto_identify):
         # Step 1: Eigenvalue decomposition
         # Eigenvalues and eigenvectors are returned in ascending order; no need to sort.
         eigvals, eigvecs = np.linalg.eigh(R)
 
         # Step 2: Display if flag is True
-        if display is True:
-            self._display_eigvals(eigvals)
+        if display or save:
+            self._plot_eigvals(eigvals, display, save)
 
         # Step 3: Auto-identify source and noise if flag is True
         if auto_identify:
-            self.num_src = self._auto_identify(eigvals)
+            self.num_src = self._auto_identify(eigvals, save)
 
         # Step 4: Extract subspace
         eigvecs_n = eigvecs[..., :-self.num_src]
@@ -125,7 +128,7 @@ class MUSIC(DOA):
 
         return eigvecs_s, eigvecs_n
 
-    def _display_eigvals(self, eigvals):
+    def _plot_eigvals(self, eigvals, display, save):
         import matplotlib.pyplot as plt
 
         # Visualize the magnitude of eigenvalues
@@ -139,21 +142,26 @@ class MUSIC(DOA):
         axes[0].set_ylabel("Eigenvalue Magnitude")
         plt.suptitle("Distribution of Eigenvalue Magnitudes Across Rows")
 
-        plt.show()
+        if save:  # saveを先にしないと、show()で消える
+            plt.savefig(f"{self.output_dir}/eigenvalues.png")
+        if display:
+            plt.show()
+        plt.close()
 
-    def _auto_identify(self, eigvals):
+    def _auto_identify(self, eigvals, save=True):
         """
         Automatically identify the number of sources based on the eigenvalues
         of the correlation matrix.
         """
-        # If eigenvalues are complex, take the real part
-        if np.iscomplexobj(eigvals):
-            eigvals = np.real(eigvals)
-
         eigvals_max = np.max(eigvals, axis=0)
         # Compute the eigenvalue ratio between consecutive elements
         eigvals_ratio = eigvals_max[1:] / eigvals_max[:-1]
+
         print(f"Eigenvalue ratio: {eigvals_ratio}")
+        # save the eigenvalue ratio
+        if save:
+            np.savetxt(f"{self.output_dir}/eigenvalue_ratio.txt", eigvals_ratio)
+
         # Find the index where the ratio exceeds the threshold or return the last index
         index = np.argmax(eigvals_ratio > self.source_noise_thresh)
         num_sources = len(eigvals_ratio) - index if index else len(eigvals_ratio)

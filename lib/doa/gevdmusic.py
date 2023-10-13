@@ -56,6 +56,7 @@ class GevdMUSIC(MUSIC):
         frequency_normalization=False,
         source_noise_thresh=100,
         X_noise = None,
+        output_dir=".",
         **kwargs
     ):
 
@@ -70,24 +71,22 @@ class GevdMUSIC(MUSIC):
             r=r,
             azimuth=azimuth,
             colatitude=colatitude,
-            frequency_normalization=False,
+            frequency_normalization=frequency_normalization,
             source_noise_thresh=source_noise_thresh,
+            output_dir=output_dir,
             **kwargs
         )
 
-        self.spatial_spectrum = None
-        self.frequency_normalization = frequency_normalization
         self.X_noise = X_noise
 
-    def _process(self, X, display, auto_identify, use_noise):
+    def _process(self, X, display, save, auto_identify, use_noise):
         # compute steered response
         self.spatial_spectrum = np.zeros((self.num_freq, self.grid.n_points))
         # Compute source and noise correlation matrices
         R = self._compute_correlation_matricesvec(X)
         K = self._compute_correlation_matricesvec(self.X_noise)
         # subspace decomposition
-        eigvecs_s, eigvecs_n = self._extract_subspaces(R, K,
-                                                       display=display,
+        eigvecs_s, eigvecs_n = self._extract_subspaces(R, K, display=display, save=save,
                                                        auto_identify=auto_identify)
         # compute spatial spectrum
         self.spatial_spectrum = self._compute_spatial_spectrum(eigvecs_s, eigvecs_n, use_noise)
@@ -96,25 +95,28 @@ class GevdMUSIC(MUSIC):
             self._apply_frequency_normalization()
         self.grid.set_values(np.squeeze(np.sum(self.spatial_spectrum, axis=1) / self.num_freq))
 
-    def _extract_subspaces(self, R, K, display, auto_identify):
+    def _extract_subspaces(self, R, K, display, save, auto_identify):
         # Initialize
-        eigvals_array = np.empty(R.shape[:2], dtype=complex)
-        eigvecs_array = np.empty(R.shape, dtype=complex)
+        eigvals = np.empty(R.shape[:2], dtype=complex)
+        eigvecs = np.empty(R.shape, dtype=complex)
 
         # Step 1: Eigenvalue decomposition
         for i in range(self.num_freq):
-            eigvals_array[i], eigvecs_array[i] = scipy.linalg.eigh(R[i], K[i])
+            eigvals[i], eigvecs[i] = scipy.linalg.eigh(R[i], K[i])
+        # If eigenvalues are complex, take the real part
+        if np.iscomplexobj(eigvals):
+            eigvals = np.real(eigvals)
 
         # Step 2: Display if flag is True
-        if display is True:
-            self._display_eigvals(eigvals_array)
+        if display or save:
+            self._plot_eigvals(eigvals, display, save)
 
         # Step 3: Auto-identify source and noise if flag is True
         if auto_identify:
-            self.num_src = self._auto_identify(eigvals_array)
+            self.num_src = self._auto_identify(eigvals, save)
 
         # Step 4: Extract subspace
-        eigvecs_n = eigvecs_array[..., :-self.num_src]
-        eigvecs_s = eigvecs_array[..., -self.num_src:]
+        eigvecs_n = eigvecs[..., :-self.num_src]
+        eigvecs_s = eigvecs[..., -self.num_src:]
 
         return eigvecs_s, eigvecs_n

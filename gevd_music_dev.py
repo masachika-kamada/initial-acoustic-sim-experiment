@@ -45,6 +45,8 @@ class RoomConfig:
             r.add_microphone_array(mic_array)
             r.simulate(snr=self.snr)
 
+        room.plot()
+        plt.show()
         start = int(self.fs * self.config["general"]["start_time"])
         end = int(self.fs * self.config["general"]["end_time"])
         return room.mic_array.signals[:, start:end], room_noise.mic_array.signals[:, start:end]
@@ -78,13 +80,14 @@ def main(room_config, config_dir):
         azimuth=np.linspace(-np.pi, np.pi, 360),
         source_noise_thresh=20,
         X_noise=X_noise,
-        num_src=1
+        output_dir=config_dir
     )
     doa.locate_sources(X, freq_range=[300, 3500],
-                    #    display=True,
+                       display=False,
+                       save=True,
                        auto_identify=True,
                        use_noise=True)
-    plot_music_spectrum(doa)
+    plot_music_spectrum(doa, output_dir=config_dir)
 
 
 if __name__ == "__main__":
