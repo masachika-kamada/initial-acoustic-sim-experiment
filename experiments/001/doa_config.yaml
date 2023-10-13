@@ -1,0 +1,3 @@
+doa:
+  method: "GEVD-MUSIC"  # or "MUSIC"
+  source_noise_thresh: 20

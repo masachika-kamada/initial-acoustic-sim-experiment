@@ -1,4 +1,5 @@
 import argparse
+import os
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -26,7 +27,7 @@ class RoomConfig:
             radius=mic_params["radius"]
         )
 
-    def generate_room_acoustics(self):
+    def generate_room_acoustics(self, output_dir):
         corners = np.array([[0, 0], [0, self.room_dim[1]], self.room_dim, [self.room_dim[0], 0]]).T  # [x,y]
         room = pra.Room.from_corners(corners, fs=self.fs, max_order=0)
         room_noise = pra.Room.from_corners(corners, fs=self.fs, max_order=0)
@@ -46,10 +47,38 @@ class RoomConfig:
             r.simulate(snr=self.snr)
 
         room.plot()
-        plt.show()
+        plt.savefig(f"{output_dir}/room.png")
+        plt.close()
         start = int(self.fs * self.config["general"]["start_time"])
         end = int(self.fs * self.config["general"]["end_time"])
         return room.mic_array.signals[:, start:end], room_noise.mic_array.signals[:, start:end]
+
+
+class DoaConfig:
+    def __init__(self, config_path):
+        self.config = load_config(config_path)
+        self.method = self.config["doa"]["method"]
+        self.source_noise_thresh = self.config["doa"]["source_noise_thresh"]
+
+    def create_doa_object(self, mic_positions, fs, nfft, X_noise, output_dir):
+        common_params = {
+            "L": mic_positions,
+            "fs": fs,
+            "nfft": nfft,
+            "c": 343.0,
+            "mode": "far",
+            "azimuth": np.linspace(-np.pi, np.pi, 360),
+            "source_noise_thresh": self.source_noise_thresh,
+            "output_dir": output_dir
+        }
+        if self.method == "MUSIC":
+            doa = MUSIC(**common_params)
+        elif self.method == "GEVD-MUSIC":
+            doa = GevdMUSIC(**common_params, X_noise=X_noise)
+        else:
+            raise ValueError(f"Unknown method: {self.method}")
+
+        return doa
 
 
 def perform_fft_on_frames(signal, nfft, hop_size):
@@ -61,33 +90,28 @@ def perform_fft_on_frames(signal, nfft, hop_size):
     return X
 
 
-def main(room_config, config_dir):
-    signal, signal_noise = room_config.generate_room_acoustics()
-    write_signal_to_wav(signal, f"{config_dir}/simulation.wav", room_config.fs)
+def main(room_config, doa_config, output_dir):
+    signal, signal_noise = room_config.generate_room_acoustics(output_dir)
+    write_signal_to_wav(signal, f"{output_dir}/simulation.wav", room_config.fs)
 
     nfft = 512
     hop_size = nfft // 2
     X = perform_fft_on_frames(signal, nfft, hop_size)
     X_noise = perform_fft_on_frames(signal_noise, nfft, hop_size)
 
-    doa = GevdMUSIC(
-    # doa = MUSIC(
-        L=room_config.mic_positions,
+    doa = doa_config.create_doa_object(
+        mic_positions=room_config.mic_positions,
         fs=room_config.fs,
         nfft=nfft,
-        c=343.0,
-        mode="near",
-        azimuth=np.linspace(-np.pi, np.pi, 360),
-        source_noise_thresh=20,
         X_noise=X_noise,
-        output_dir=config_dir
+        output_dir=output_dir
     )
     doa.locate_sources(X, freq_range=[300, 3500],
                        display=False,
                        save=True,
                        auto_identify=True,
                        use_noise=True)
-    plot_music_spectrum(doa, output_dir=config_dir)
+    plot_music_spectrum(doa, output_dir=output_dir)
 
 
 if __name__ == "__main__":
@@ -96,6 +120,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     config_dir = f"experiments/{args.config_dir}"
-    room_config = RoomConfig(f"{config_dir}/config.yaml")
+    room_config = RoomConfig(f"{config_dir}/room_config.yaml")
+    doa_config = DoaConfig(f"{config_dir}/doa_config.yaml")
+    output_dir = f"{config_dir}/output"
+    os.makedirs(output_dir, exist_ok=True)
 
-    main(room_config, config_dir)
+    main(room_config, doa_config, output_dir)
