@@ -7,6 +7,8 @@ general:
     M: 8
     phi0: 0
     radius: 0.1
+  start_time: 0.1
+  end_time: 4
 
 source:
   - file_path: "data/raw/sample/arctic_a0001.wav"

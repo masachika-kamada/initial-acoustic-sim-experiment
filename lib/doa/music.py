@@ -39,7 +39,7 @@ class MUSIC(DOA):
         Default is x-y plane search: np.pi/2*np.ones(1)
     frequency_normalization: bool
         If True, the MUSIC pseudo-spectra are normalized before averaging across the frequency axis, default:False
-    signal_noise_thresh: float
+    source_noise_thresh: float
         Threshold for automatically identifying the number of sources. Default: 100
     """
 
@@ -55,7 +55,7 @@ class MUSIC(DOA):
         azimuth=None,
         colatitude=None,
         frequency_normalization=False,
-        signal_noise_thresh=100,
+        source_noise_thresh=100,
         **kwargs
     ):
 
@@ -75,7 +75,7 @@ class MUSIC(DOA):
 
         self.spatial_spectrum = None
         self.frequency_normalization = frequency_normalization
-        self.signal_noise_thresh = signal_noise_thresh
+        self.source_noise_thresh = source_noise_thresh
 
     def _process(self, X, display, auto_identify, use_noise):
         """
@@ -115,7 +115,7 @@ class MUSIC(DOA):
         if display is True:
             self._display_eigvals(eigvals)
 
-        # Step 3: Auto-identify signal and noise if flag is True
+        # Step 3: Auto-identify source and noise if flag is True
         if auto_identify:
             self.num_src = self._auto_identify(eigvals)
 
@@ -128,25 +128,15 @@ class MUSIC(DOA):
     def _display_eigvals(self, eigvals):
         import matplotlib.pyplot as plt
 
-        # Visualize the order of eigenvalue magnitudes
-        sorted_indices = np.argsort(eigvals)
-        cmap = plt.get_cmap("viridis")
-        fig1, ax1 = plt.subplots(figsize=(8, 8))
-        cax1 = ax1.matshow(sorted_indices, cmap=cmap, aspect="auto")
-        fig1.colorbar(cax1, label="Rank of Eigenvalue (not normalized)")
-        ax1.set_title("Eigenvalue Ranks for Each Row")
-        ax1.set_xlabel("Eigenvalue Index")
-        ax1.set_ylabel("Row Index")
-
         # Visualize the magnitude of eigenvalues
-        fig2, axes2 = plt.subplots(1, 8, figsize=(15, 8), sharey=True)
+        fig, axes = plt.subplots(1, 8, figsize=(15, 8), sharey=True)
         for i in range(8):
-            axes2[i].plot(eigvals[..., i], label=f"Eigenvalue {i+1}", marker="o", linestyle="")
-            axes2[i].set_title(f"Eigenvalue {i+1}")
-            axes2[i].set_xlabel("Row Index")
-            axes2[i].set_ylim([np.min(eigvals), np.max(eigvals)])
+            axes[i].plot(eigvals[..., i], label=f"Eigenvalue {i+1}", marker="o", linestyle="")
+            axes[i].set_title(f"Eigenvalue {i+1}")
+            axes[i].set_xlabel("Row Index")
+            axes[i].set_ylim([np.min(eigvals), np.max(eigvals)])
 
-        axes2[0].set_ylabel("Eigenvalue Magnitude")
+        axes[0].set_ylabel("Eigenvalue Magnitude")
         plt.suptitle("Distribution of Eigenvalue Magnitudes Across Rows")
 
         plt.show()
@@ -165,7 +155,7 @@ class MUSIC(DOA):
         eigvals_ratio = eigvals_max[1:] / eigvals_max[:-1]
         print(f"Eigenvalue ratio: {eigvals_ratio}")
         # Find the index where the ratio exceeds the threshold or return the last index
-        index = np.argmax(eigvals_ratio > self.signal_noise_thresh)
+        index = np.argmax(eigvals_ratio > self.source_noise_thresh)
         num_sources = len(eigvals_ratio) - index if index else len(eigvals_ratio)
         return num_sources
 

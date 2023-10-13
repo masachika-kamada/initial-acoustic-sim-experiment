@@ -38,7 +38,7 @@ class GevdMUSIC(MUSIC):
         Default is x-y plane search: np.pi/2*np.ones(1)
     frequency_normalization: bool
         If True, the MUSIC pseudo-spectra are normalized before averaging across the frequency axis, default:False
-    signal_noise_thresh: float
+    source_noise_thresh: float
         Threshold for automatically identifying the number of sources. Default: 100
     """
 
@@ -54,7 +54,7 @@ class GevdMUSIC(MUSIC):
         azimuth=None,
         colatitude=None,
         frequency_normalization=False,
-        signal_noise_thresh=100,
+        source_noise_thresh=100,
         X_noise = None,
         **kwargs
     ):
@@ -71,7 +71,7 @@ class GevdMUSIC(MUSIC):
             azimuth=azimuth,
             colatitude=colatitude,
             frequency_normalization=False,
-            signal_noise_thresh=signal_noise_thresh,
+            source_noise_thresh=source_noise_thresh,
             **kwargs
         )
 
@@ -82,7 +82,7 @@ class GevdMUSIC(MUSIC):
     def _process(self, X, display, auto_identify, use_noise):
         # compute steered response
         self.spatial_spectrum = np.zeros((self.num_freq, self.grid.n_points))
-        # Compute signal and noise correlation matrices
+        # Compute source and noise correlation matrices
         R = self._compute_correlation_matricesvec(X)
         K = self._compute_correlation_matricesvec(self.X_noise)
         # subspace decomposition
@@ -109,7 +109,7 @@ class GevdMUSIC(MUSIC):
         if display is True:
             self._display_eigvals(eigvals_array)
 
-        # Step 3: Auto-identify signal and noise if flag is True
+        # Step 3: Auto-identify source and noise if flag is True
         if auto_identify:
             self.num_src = self._auto_identify(eigvals_array)
 

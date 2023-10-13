@@ -1,63 +1,53 @@
-import pyroomacoustics as pra
-import numpy as np
+import argparse
+
 import matplotlib.pyplot as plt
-from src.file_io import load_signal_from_wav, write_signal_to_wav
-from src.visualization_tools import plot_music_spectrum
+import numpy as np
+import pyroomacoustics as pra
+
 from lib.doa import MUSIC, GevdMUSIC
+from src.file_io import load_config, load_signal_from_wav, write_signal_to_wav
+from src.visualization_tools import plot_music_spectrum
 
 
-def generate_room_acoustics(wav_file_path, fs, sources_positions, mic_positions):
-    room_dim = [4, 4]
-    corners = np.array([[0, 0], [0, room_dim[1]], room_dim, [room_dim[0], 0]]).T  # [x,y]
-    room = pra.Room.from_corners(corners, fs=fs, max_order=0)
+class RoomConfig:
+    def __init__(self, config_path):
+        self.config = load_config(config_path)
+        self.room_dim = self.config["general"]["room_dim"]
+        self.snr = self.config["general"]["snr"]
+        self.fs = self.config["general"]["fs"]
+        self.mic_positions = self.create_mic_positions()
 
-    signal = load_signal_from_wav(wav_file_path, room.fs)
-    samples_per_source = len(signal) // len(sources_positions)
-    for i, pos in enumerate(sources_positions):
-        room.add_source(pos, signal=signal[samples_per_source * i:samples_per_source * (i + 1)])
+    def create_mic_positions(self):
+        mic_params = self.config["general"]["mic_positions"]
+        return pra.circular_2D_array(
+            center=mic_params["center"],
+            M=mic_params["M"],
+            phi0=mic_params["phi0"],
+            radius=mic_params["radius"]
+        )
 
-    voice = "data/raw/sample/arctic_a0001.wav"
-    signal = load_signal_from_wav(voice, room.fs)
-    # signalを2倍にする
-    signal = np.concatenate([signal, signal])[:samples_per_source]
-    room.add_source([1, 2.5], signal=signal)
+    def generate_room_acoustics(self):
+        corners = np.array([[0, 0], [0, self.room_dim[1]], self.room_dim, [self.room_dim[0], 0]]).T  # [x,y]
+        room = pra.Room.from_corners(corners, fs=self.fs, max_order=0)
+        room_noise = pra.Room.from_corners(corners, fs=self.fs, max_order=0)
 
-    mic_array = pra.MicrophoneArray(mic_positions, room.fs)
-    room.add_microphone_array(mic_array)
-    room.simulate(snr=10)
-    room.plot()
-    return room.mic_array.signals
+        for source in self.config["source"]:
+            signal = load_signal_from_wav(source["file_path"], self.fs)
+            room.add_source(source["position"], signal=signal[self.fs * source["start_time"]:])
 
+        for noise in self.config["noise"]:
+            signal = load_signal_from_wav(noise["file_path"], self.fs)
+            room.add_source(noise["position"], signal=signal[self.fs * noise["start_time"]:])
+            room_noise.add_source(noise["position"], signal=signal[self.fs * noise["start_time"]:])
 
-def generate_room_acoustics2(fs, mic_positions):
-    room_dim = [4, 4]
-    corners = np.array([[0, 0], [0, room_dim[1]], room_dim, [room_dim[0], 0]]).T  # [x,y]
-    room = pra.Room.from_corners(corners, fs=fs, max_order=0)
+        for r in [room, room_noise]:
+            mic_array = pra.MicrophoneArray(self.mic_positions, self.fs)
+            r.add_microphone_array(mic_array)
+            r.simulate(snr=self.snr)
 
-    voice = "data/raw/sample/arctic_a0001.wav"
-    signal = load_signal_from_wav(voice, room.fs)
-    room.add_source([1, 2.5], signal=signal)
-
-    mic_array = pra.MicrophoneArray(mic_positions, room.fs)
-    room.add_microphone_array(mic_array)
-    room.simulate(snr=10)
-    return room.mic_array.signals
-
-
-def generate_room_acoustics3(wav_file_path, fs, sources_positions, mic_positions):
-    room_dim = [4, 4]
-    corners = np.array([[0, 0], [0, room_dim[1]], room_dim, [room_dim[0], 0]]).T  # [x,y]
-    room = pra.Room.from_corners(corners, fs=fs, max_order=0)
-
-    signal = load_signal_from_wav(wav_file_path, room.fs)
-    samples_per_source = len(signal) // len(sources_positions)
-    for i, pos in enumerate(sources_positions):
-        room.add_source(pos, signal=signal[samples_per_source * i:samples_per_source * (i + 1)])
-
-    mic_array = pra.MicrophoneArray(mic_positions, room.fs)
-    room.add_microphone_array(mic_array)
-    room.simulate(snr=10)
-    return room.mic_array.signals
+        start = int(self.fs * self.config["general"]["start_time"])
+        end = int(self.fs * self.config["general"]["end_time"])
+        return room.mic_array.signals[:, start:end], room_noise.mic_array.signals[:, start:end]
 
 
 def perform_fft_on_frames(signal, nfft, hop_size):
@@ -69,30 +59,24 @@ def perform_fft_on_frames(signal, nfft, hop_size):
     return X
 
 
-def main():
-    wav_file_path = "data/processed/propeller/p2000_2/dst.wav"
-    fs = 16000
-    sources_positions = np.array([[0.5, 0.5], [2, 3.2], [3.5, 2]])
-    mic_positions = pra.circular_2D_array(center=[2.,2.], M=8, phi0=0, radius=0.1)
-    signal = generate_room_acoustics(wav_file_path, fs, sources_positions, mic_positions)
-    # signal2 = generate_room_acoustics2(fs, mic_positions)
-    signal3 = generate_room_acoustics3(wav_file_path, fs, sources_positions, mic_positions)
-    # write_signal_to_wav(signal, "data/simulation/gevd/room2.wav", fs)
+def main(room_config, config_dir):
+    signal, signal_noise = room_config.generate_room_acoustics()
+    write_signal_to_wav(signal, f"{config_dir}/simulation.wav", room_config.fs)
 
     nfft = 512
     hop_size = nfft // 2
     X = perform_fft_on_frames(signal, nfft, hop_size)
-    X_noise = perform_fft_on_frames(signal3, nfft, hop_size)
+    X_noise = perform_fft_on_frames(signal_noise, nfft, hop_size)
 
     doa = GevdMUSIC(
     # doa = MUSIC(
-        L=mic_positions,
-        fs=fs,
+        L=room_config.mic_positions,
+        fs=room_config.fs,
         nfft=nfft,
         c=343.0,
         mode="near",
         azimuth=np.linspace(-np.pi, np.pi, 360),
-        signal_noise_thresh=20,
+        source_noise_thresh=20,
         X_noise=X_noise,
         num_src=1
     )
@@ -104,4 +88,11 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Generate room acoustics based on YAML config.")
+    parser.add_argument("--config_dir", type=str, required=True, help="Directory containing the config.yaml file")
+    args = parser.parse_args()
+
+    config_dir = f"experiments/{args.config_dir}"
+    room_config = RoomConfig(f"{config_dir}/config.yaml")
+
+    main(room_config, config_dir)
