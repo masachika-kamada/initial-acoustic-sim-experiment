@@ -2,29 +2,8 @@ import pyroomacoustics as pra
 import numpy as np
 import matplotlib.pyplot as plt
 from src.file_io import load_signal_from_wav, write_signal_to_wav
+from src.visualization_tools import plot_music_spectrum
 from lib.doa import MUSIC, GevdMUSIC
-
-
-def plot_music_spectrum(doa):
-    estimated_angles = doa.grid.azimuth
-    music_spectrum = doa.grid.values
-    music_spectrum -= np.min(music_spectrum)
-    plt.figure(figsize=(12, 5))
-
-    plt.subplot(1, 2, 1, projection="polar")
-    plt.polar(estimated_angles, music_spectrum)
-    plt.title("MUSIC Spectrum (Polar Coordinates)")
-    plt.grid(True)
-
-    plt.subplot(1, 2, 2)
-    plt.plot(np.rad2deg(estimated_angles), music_spectrum)
-    plt.title("MUSIC Spectrum (Cartesian Coordinates)")
-    plt.xlabel("Angle (degrees)")
-    plt.ylabel("Magnitude")
-    plt.grid(True)
-
-    plt.tight_layout()
-    plt.show()
 
 
 def generate_room_acoustics(wav_file_path, fs, sources_positions, mic_positions):

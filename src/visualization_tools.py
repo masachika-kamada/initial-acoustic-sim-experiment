@@ -54,3 +54,24 @@ def plot_room_views(room: pra.ShoeBox,
 
 def play_audio(audio_data: np.ndarray, fs: int) -> None:
     display(Audio(audio_data, rate=fs))
+
+
+def plot_music_spectrum(doa):
+    estimated_angles = doa.grid.azimuth
+    music_spectrum = doa.grid.values
+    plt.figure(figsize=(12, 5))
+
+    plt.subplot(1, 2, 1, projection="polar")
+    plt.polar(estimated_angles, music_spectrum)
+    plt.title("MUSIC Spectrum (Polar Coordinates)")
+    plt.grid(True)
+
+    plt.subplot(1, 2, 2)
+    plt.plot(np.rad2deg(estimated_angles), music_spectrum)
+    plt.title("MUSIC Spectrum (Cartesian Coordinates)")
+    plt.xlabel("Angle (degrees)")
+    plt.ylabel("Magnitude")
+    plt.grid(True)
+
+    plt.tight_layout()
+    plt.show()
