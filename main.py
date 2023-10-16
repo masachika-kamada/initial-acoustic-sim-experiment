@@ -18,13 +18,13 @@ def create_mic_positions(mic_params):
 
 
 def generate_room_acoustics(config, output_dir):
-    room_dim = config["general"]["room_dim"]
-    fs = config["general"]["fs"]
-    snr = config["general"]["snr"]
+    room_dim = config["room"]["room_dim"]
+    fs = config["room"]["fs"]
+    snr = config["room"]["snr"]
     corners = np.array([[0, 0], [0, room_dim[1]], room_dim, [room_dim[0], 0]]).T  # [x, y]
     room = pra.Room.from_corners(corners, fs=fs, max_order=0)
     room_noise = pra.Room.from_corners(corners, fs=fs, max_order=0)
-    mic_positions = create_mic_positions(config["general"]["mic_positions"])
+    mic_positions = create_mic_positions(config["mic_positions"])
 
     for source in config["source"]:
         signal = load_signal_from_wav(source["file_path"], fs)
@@ -43,8 +43,8 @@ def generate_room_acoustics(config, output_dir):
     room.plot()
     plt.savefig(f"{output_dir}/room.png")
     plt.close()
-    start = int(fs * config["general"]["start_time"])
-    end = int(fs * config["general"]["end_time"])
+    start = int(fs * config["processing"]["start_time"])
+    end = int(fs * config["processing"]["end_time"])
     return room.mic_array.signals[:, start:end], room_noise.mic_array.signals[:, start:end], mic_positions
 
 
@@ -78,27 +78,27 @@ def perform_fft_on_frames(signal, nfft, hop_size):
 
 
 def main(config, output_dir):
-    signal, signal_noise, mic_positions = generate_room_acoustics(config, output_dir)
-    write_signal_to_wav(signal, f"{output_dir}/simulation.wav", config["general"]["fs"])
+    pra_config = config["pra"]
+    signal, signal_noise, mic_positions = generate_room_acoustics(pra_config, output_dir)
+    write_signal_to_wav(signal, f"{output_dir}/simulation.wav", pra_config["room"]["fs"])
 
-    nfft = config["general"]["nfft"]
-    hop_size = config["general"]["hop_size"]
-    freq_range = config["general"]["freq_range"]
-
-    X = perform_fft_on_frames(signal, nfft, hop_size)
-    X_noise = perform_fft_on_frames(signal_noise, nfft, hop_size)
+    fft_config = config["fft"]
+    window_size = fft_config["window_size"]
+    hop_size = fft_config["hop_size"]
+    X = perform_fft_on_frames(signal, window_size, hop_size)
+    X_noise = perform_fft_on_frames(signal_noise, window_size, hop_size)
 
     doa_config = config["doa"]
     doa = create_doa_object(
         method=doa_config["method"],
         source_noise_thresh=doa_config["source_noise_thresh"],
         mic_positions=mic_positions,
-        fs=config["general"]["fs"],
-        nfft=nfft,
+        fs=pra_config["room"]["fs"],
+        nfft=window_size,
         X_noise=X_noise,
         output_dir=output_dir,
     )
-    doa.locate_sources(X, freq_range=freq_range, auto_identify=True, use_noise=True)
+    doa.locate_sources(X, freq_range=doa_config["freq_range"], auto_identify=True, use_noise=True)
     plot_music_spectrum(doa, output_dir=output_dir)
 
 
