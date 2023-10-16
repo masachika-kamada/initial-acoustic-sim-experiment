@@ -22,30 +22,43 @@ def generate_room_acoustics(config, output_dir):
     fs = config["room"]["fs"]
     snr = config["room"]["snr"]
     corners = np.array([[0, 0], [0, room_dim[1]], room_dim, [room_dim[0], 0]]).T  # [x, y]
-    room = pra.Room.from_corners(corners, fs=fs, max_order=0)
-    room_noise = pra.Room.from_corners(corners, fs=fs, max_order=0)
-    mic_positions = create_mic_positions(config["mic_positions"])
+
+    rooms = []
+    absorption = config["room"]["absorption"]
+    m = config["room"]["material"]
+    max_order = config["room"]["max_order"]
+    if m is None:
+        m = pra.Material(energy_absorption=absorption)
+    else:
+        m = pra.Material(m)
+    rooms.append(pra.Room.from_corners(corners, fs=fs, max_order=max_order, materials=m))
+    noise_config = config.get("noise", [])
+    if len(noise_config) > 0:
+        rooms.append(pra.Room.from_corners(corners, fs=fs, max_order=0))
 
     for source in config["source"]:
         signal = load_signal_from_wav(source["file_path"], fs)
-        room.add_source(source["position"], signal=signal[fs * source["start_time"] :])
+        rooms[0].add_source(source["position"], signal=signal[fs * source["start_time"] :])
 
-    for noise in config["noise"]:
+    for noise in noise_config:
         signal = load_signal_from_wav(noise["file_path"], fs)
-        room.add_source(noise["position"], signal=signal[fs * noise["start_time"] :])
-        room_noise.add_source(noise["position"], signal=signal[fs * noise["start_time"] :])
+        rooms[0].add_source(noise["position"], signal=signal[fs * noise["start_time"] :])
+        rooms[1].add_source(noise["position"], signal=signal[fs * noise["start_time"] :])
 
-    for r in [room, room_noise]:
+    mic_positions = create_mic_positions(config["mic_positions"])
+    for r in rooms:
         mic_array = pra.MicrophoneArray(mic_positions, fs)
         r.add_microphone_array(mic_array)
         r.simulate(snr=snr)
-
-    room.plot()
+    rooms[0].plot()
     plt.savefig(f"{output_dir}/room.png")
     plt.close()
+
     start = int(fs * config["processing"]["start_time"])
     end = int(fs * config["processing"]["end_time"])
-    return room.mic_array.signals[:, start:end], room_noise.mic_array.signals[:, start:end], mic_positions
+    signal = rooms[0].mic_array.signals[:, start:end]
+    signal_noise = rooms[1].mic_array.signals[:, start:end] if len(noise_config) > 0 else None
+    return signal, signal_noise, mic_positions
 
 
 def create_doa_object(method, source_noise_thresh, mic_positions, fs, nfft, X_noise, output_dir):
@@ -86,7 +99,7 @@ def main(config, output_dir):
     window_size = fft_config["window_size"]
     hop_size = fft_config["hop_size"]
     X = perform_fft_on_frames(signal, window_size, hop_size)
-    X_noise = perform_fft_on_frames(signal_noise, window_size, hop_size)
+    X_noise = perform_fft_on_frames(signal_noise, window_size, hop_size) if signal_noise is not None else None
 
     doa_config = config["doa"]
     doa = create_doa_object(
