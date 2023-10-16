@@ -3,10 +3,17 @@ pra:
     room_dim: [4, 4]
     snr: 10
     fs: 16000
-    max_order: 17
-    absorption: 1.0
-    # material: "hard_surface"
-    material: null
+    source:
+      max_order: 0
+      absorption: 1.0
+      # For material options, refer to: https://pyroomacoustics.readthedocs.io/en/pypi-release/pyroomacoustics.materials.database.html
+      # material: "hard_surface"
+      material: null
+    noise:
+      max_order: 0
+      absorption: 1.0
+      # For material options, refer to: https://pyroomacoustics.readthedocs.io/en/pypi-release/pyroomacoustics.materials.database.html
+      material: null
   mic_positions:
     center: [2.0, 2.0]
     M: 8

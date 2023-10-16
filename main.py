@@ -17,6 +17,17 @@ def create_mic_positions(mic_params):
     )
 
 
+def create_materials(config):
+    absorption = config["absorption"]
+    m = config["material"]
+    max_order = config["max_order"]
+    if m is None:
+        m = pra.Material(energy_absorption=absorption)
+    else:
+        m = pra.Material(m)
+    return m, max_order
+
+
 def generate_room_acoustics(config, output_dir):
     room_dim = config["room"]["room_dim"]
     fs = config["room"]["fs"]
@@ -24,17 +35,12 @@ def generate_room_acoustics(config, output_dir):
     corners = np.array([[0, 0], [0, room_dim[1]], room_dim, [room_dim[0], 0]]).T  # [x, y]
 
     rooms = []
-    absorption = config["room"]["absorption"]
-    m = config["room"]["material"]
-    max_order = config["room"]["max_order"]
-    if m is None:
-        m = pra.Material(energy_absorption=absorption)
-    else:
-        m = pra.Material(m)
+    m, max_order = create_materials(config["room"]["source"])
     rooms.append(pra.Room.from_corners(corners, fs=fs, max_order=max_order, materials=m))
     noise_config = config.get("noise", [])
     if len(noise_config) > 0:
-        rooms.append(pra.Room.from_corners(corners, fs=fs, max_order=0))
+        m, max_order = create_materials(config["room"]["noise"])
+        rooms.append(pra.Room.from_corners(corners, fs=fs, max_order=max_order, materials=m))
 
     for source in config["source"]:
         signal = load_signal_from_wav(source["file_path"], fs)
