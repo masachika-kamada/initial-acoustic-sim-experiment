@@ -4,6 +4,7 @@ RUN apt-get update && apt-get install -y \
     git \
     curl \
     wget \
+    ffmpeg \
     liblapack-dev \
     liblapacke-dev \
     gcc \
