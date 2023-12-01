@@ -1,16 +1,16 @@
 import numpy as np
-import scipy
+import pygsvd
 
 from .music import *
 
 
-class GevdMUSIC(MUSIC):
+class GsvdMUSIC(MUSIC):
     """
-    Class to apply the Generalized Eigenvalue Decomposition (GEVD) based MUSIC
-    (GEVD-MUSIC) direction-of-arrival (DoA) for a particular microphone array,
+    Class to apply the Generalized Singular Value Decomposition (GSVD) based MUSIC
+    (GSVD-MUSIC) direction-of-arrival (DoA) for a particular microphone array,
     extending the capabilities of the original MUSIC algorithm.
 
-    .. note:: Run locate_source() to apply the GEVD-MUSIC algorithm.
+    .. note:: Run locate_source() to apply the GSVD-MUSIC algorithm.
 
     Parameters
     ----------
@@ -86,10 +86,10 @@ class GevdMUSIC(MUSIC):
         R = self._compute_correlation_matricesvec(X)
         K = self._compute_correlation_matricesvec(self.X_noise)
         # subspace decomposition
-        eigvecs_s, eigvecs_n = self._extract_subspaces(R, K, display=display, save=save,
-                                                       auto_identify=auto_identify)
+        vecs_s, vecs_n = self._extract_subspaces(R, K, display=display, save=save,
+                                                 auto_identify=auto_identify)
         # compute spatial spectrum
-        self.spatial_spectrum = self._compute_spatial_spectrum(eigvecs_s, eigvecs_n, use_noise)
+        self.spatial_spectrum = self._compute_spatial_spectrum(vecs_s, vecs_n, use_noise)
 
         if self.frequency_normalization:
             self._apply_frequency_normalization()
@@ -97,26 +97,28 @@ class GevdMUSIC(MUSIC):
 
     def _extract_subspaces(self, R, K, display, save, auto_identify):
         # Initialize
-        eigvals = np.empty(R.shape[:2], dtype=complex)
-        eigvecs = np.empty(R.shape, dtype=complex)
+        C = np.empty(R.shape[:2], dtype=complex)
+        X = np.empty(R.shape, dtype=complex)
 
-        # Step 1: Eigenvalue decomposition
+        # Step 1: Generalized Singular Value Decomposition
         for i in range(self.num_freq):
-            eigvals[i], eigvecs[i] = scipy.linalg.eigh(R[i], K[i])
-        # If eigenvalues are complex, take the real part
-        if np.iscomplexobj(eigvals):
-            eigvals = np.real(eigvals)
+            C[i], s, X[i], u, v = pygsvd.gsvd(R[i], K[i])
+        if np.iscomplexobj(C):
+            C = np.real(C)
 
         # Step 2: Display if flag is True
         if display or save:
-            self._plot_eigvals(eigvals, display, save)
+            self._plot_eigvals(C, display, save)
 
         # Step 3: Auto-identify source and noise if flag is True
-        if auto_identify:
-            self.num_src = self._auto_identify(eigvals, save)
+        # TODO: Implement this
+        # if auto_identify:
+        #     self.num_src = self._auto_identify(C, save)
+        self.num_src = 2
 
         # Step 4: Extract subspace
-        eigvecs_n = eigvecs[..., :-self.num_src]
-        eigvecs_s = eigvecs[..., -self.num_src:]
+        X = X[..., ::-1]
+        X_s = X[..., -self.num_src:]
+        X_n = X[..., :-self.num_src]
 
-        return eigvecs_s, eigvecs_n
+        return X_s, X_n
