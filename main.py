@@ -3,7 +3,7 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 import pyroomacoustics as pra
-from lib.doa import MUSIC, GevdMUSIC
+from lib.doa import MUSIC, GevdMUSIC, GsvdMUSIC
 from src.file_io import load_config, load_signal_from_wav, write_signal_to_wav
 from src.visualization_tools import plot_music_spectrum
 
@@ -82,6 +82,8 @@ def create_doa_object(method, source_noise_thresh, mic_positions, fs, nfft, X_no
         doa = MUSIC(**common_params)
     elif method == "GEVD-MUSIC":
         doa = GevdMUSIC(**common_params, X_noise=X_noise)
+    elif method == "GSVD-MUSIC":
+        doa = GsvdMUSIC(**common_params, X_noise=X_noise)
     else:
         raise ValueError(f"Unknown method: {method}")
     return doa
